@@ -1,0 +1,150 @@
+"""Sample configuration file for Salesforce migration."""
+
+migration:
+  name: "Regional to Global Account Migration"
+  description: "Migrate core account records from regional Salesforce to global platform"
+  version: "1.0.0"
+
+objects:
+  - source_object: Account
+    target_object: Account
+    description: "Migrate Account objects with field mappings"
+    external_id_field: "ExternalID__c"
+    filter_condition: "WHERE Status__c = 'Active'"
+    batch_size: 200
+    validate_before_load: true
+    
+    field_mappings:
+      # Basic text fields
+      - source_field: Name
+        target_field: Name
+        field_type: text
+        required: true
+        validation:
+          - rule_type: not_null
+            is_error: true
+          - rule_type: min_length
+            config:
+              min_length: 2
+            is_error: true
+          - rule_type: max_length
+            config:
+              max_length: 255
+            is_error: true
+      
+      # Phone field with transformation
+      - source_field: Phone
+        target_field: Phone__c
+        field_type: phone
+        transformer: format_phone
+        validation:
+          - rule_type: phone_format
+            is_error: false  # Warning only
+      
+      # Website URL
+      - source_field: Website
+        target_field: Website
+        field_type: url
+        validation:
+          - rule_type: url_format
+            is_error: false
+      
+      # Email field
+      - source_field: Email
+        target_field: Email__c
+        field_type: email
+        validation:
+          - rule_type: email_format
+            is_error: true
+      
+      # DateTime field with transformation
+      - source_field: CreatedDate
+        target_field: CreatedAt__c
+        field_type: datetime
+        transformer: datetime_to_iso
+      
+      # Picklist field
+      - source_field: Industry
+        target_field: Industry
+        field_type: picklist
+        transformer: normalize_text
+        transformer_config:
+          uppercase: true
+        validation:
+          - rule_type: in_list
+            config:
+              allowed_values:
+                - TECHNOLOGY
+                - FINANCE
+                - HEALTHCARE
+                - RETAIL
+            is_error: true
+      
+      # Number field
+      - source_field: AnnualRevenue
+        target_field: Revenue__c
+        field_type: currency
+        transformer: string_to_number
+        validation:
+          - rule_type: numeric_range
+            config:
+              min: 0
+              max: 999999999
+            is_error: false
+      
+      # Boolean field
+      - source_field: Active
+        target_field: IsActive__c
+        field_type: boolean
+        transformer: boolean_from_text
+        transformer_config:
+          true_values: ['yes', 'true', '1', 'active']
+          false_values: ['no', 'false', '0', 'inactive']
+
+  - source_object: Contact
+    target_object: Contact
+    description: "Migrate Contact objects"
+    external_id_field: "MigrationID__c"
+    batch_size: 500
+    validate_before_load: true
+    
+    field_mappings:
+      - source_field: FirstName
+        target_field: FirstName
+        field_type: text
+        required: true
+        validation:
+          - rule_type: not_null
+            is_error: true
+      
+      - source_field: LastName
+        target_field: LastName
+        field_type: text
+        required: true
+        validation:
+          - rule_type: not_null
+            is_error: true
+      
+      - source_field: Email
+        target_field: Email
+        field_type: email
+        validation:
+          - rule_type: email_format
+            is_error: true
+      
+      - source_field: Phone
+        target_field: Phone
+        field_type: phone
+        transformer: format_phone
+
+reporting:
+  enabled: true
+  format: json
+  include_validation_details: true
+  include_reconciliation: true
+  output_path: ./migration_reports/
+  
+error_handling:
+  on_validation_failure: "skip"  # skip, abort, or warn
+  on_transformation_error: "warn"  # skip, abort, or warn
+  max_errors_before_abort: 1000
